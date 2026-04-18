@@ -46,8 +46,6 @@
         <div class="tab active" id="atab-li" onclick="authTab('login')">Log In</div>
         <div class="tab" id="atab-reg" onclick="authTab('register')">Create Account</div>
       </div>
-
-      <!-- LOGIN -->
       <div id="form-login">
         <div style="text-align:center;margin-bottom:1.2rem">
           <div style="font-size:1.75rem;margin-bottom:.3rem">🔐</div>
@@ -65,8 +63,6 @@
         <button class="btn btn-p btn-lg" style="margin-top:.6rem" onclick="doLogin()" id="li-btn">Log In →</button>
         <p style="text-align:center;margin-top:.85rem;font-size:.8rem;color:var(--text3)">No account? <span style="color:var(--accent2);cursor:pointer;font-weight:500" onclick="authTab('register')">Create one free →</span></p>
       </div>
-
-      <!-- REGISTER -->
       <div id="form-register" class="hidden">
         <div style="text-align:center;margin-bottom:1.2rem">
           <div style="font-size:1.75rem;margin-bottom:.3rem">✨</div>
@@ -132,6 +128,7 @@
     <div class="tabs" id="admin-tabs">
       <div class="tab active" onclick="switchTab('quizzes')">📋 My Quizzes</div>
       <div class="tab" onclick="switchTab('results')">📊 All Results</div>
+      <div class="tab" onclick="switchTab('analytics')">🔬 Analytics</div>
     </div>
     <div id="tab-quizzes">
       <div style="display:flex;justify-content:flex-end;margin-bottom:.85rem">
@@ -141,6 +138,9 @@
     </div>
     <div id="tab-results" class="hidden">
       <div id="results-wrap"><div class="spinner"></div></div>
+    </div>
+    <div id="tab-analytics" class="hidden">
+      <div id="analytics-wrap"><div class="spinner"></div></div>
     </div>
   </div>
 </div>
@@ -159,10 +159,27 @@
     <div class="card" style="margin-bottom:1.1rem">
       <div class="iw" style="margin:0 0 .65rem"><label>Quiz Title</label>
         <input id="eq-title" type="text" placeholder="Enter quiz title..."/></div>
-      <div class="iw" style="margin:0"><label>Topic for AI Generation</label>
+      <div class="iw" style="margin:0 0 .65rem"><label>Topic for AI Generation</label>
         <input id="eq-topic" type="text" placeholder="e.g. Pakistan History, JavaScript, World Geography..."/></div>
+      <!-- Timer control -->
+      <div style="margin-bottom:.85rem">
+        <label style="display:block;font-size:.72rem;font-weight:500;color:var(--text2);margin-bottom:.4rem;letter-spacing:.05em;text-transform:uppercase">⏱ Timer Per Question</label>
+        <div class="timer-ctrl">
+          <label>5s</label>
+          <input type="range" id="eq-timer" min="5" max="120" step="5" value="10" oninput="updTimerVal(this.value)"/>
+          <label>120s</label>
+          <span class="tval" id="timer-val-disp">10 sec</span>
+        </div>
+      </div>
       <div style="display:flex;gap:.55rem;margin-top:.85rem;flex-wrap:wrap;align-items:center">
-        <button class="btn btn-p btn-sm" id="ai-btn" onclick="aiGen()">✨ AI Generate 30 Questions</button>
+        <button class="btn btn-p btn-sm" id="ai-btn" onclick="aiGen()">✨ AI Generate Questions</button>
+        <div class="iw" style="margin:0;flex:1;min-width:120px">
+          <select id="ai-qtype" style="padding:.38rem .7rem;font-size:.82rem">
+            <option value="mcq">Multiple Choice</option>
+            <option value="truefalse">True / False</option>
+            <option value="fill">Fill in the Blank</option>
+          </select>
+        </div>
         <span style="color:var(--text3);font-size:.78rem">or build manually below</span>
       </div>
     </div>
@@ -170,7 +187,10 @@
       <p style="text-align:center;color:var(--text2);font-size:.85rem;margin-top:-.4rem">Generating with AI...</p></div>
     <div id="q-builder"></div>
     <div style="display:flex;gap:.55rem;margin-top:.9rem;flex-wrap:wrap">
-      <button class="btn btn-g btn-sm" onclick="addQ()">+ Add Question</button>
+      <button class="btn btn-g btn-sm" onclick="addQ('mcq')">+ MCQ</button>
+      <button class="btn btn-g btn-sm" onclick="addQ('truefalse')">+ True/False</button>
+      <button class="btn btn-g btn-sm" onclick="addQ('fill')">+ Fill Blank</button>
+      <button class="btn btn-g btn-sm" onclick="addQ('match')">+ Match Pairs</button>
       <button class="btn btn-p btn-sm" onclick="saveQuiz()">Save Quiz</button>
     </div>
   </div>
@@ -200,7 +220,7 @@
       </div>
     </div>
     <div class="qbox">
-      <div style="font-size:.7rem;font-weight:500;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6rem">Multiple Choice</div>
+      <div id="q-type-label" style="font-size:.7rem;font-weight:500;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6rem">Multiple Choice</div>
       <div class="qtext" id="qtext">Loading...</div>
       <div id="qopts"></div>
     </div>
@@ -216,8 +236,12 @@
   <div class="sscreen">
     <div class="sicon">✓</div>
     <h2 style="font-size:1.55rem;font-weight:600;margin-bottom:.45rem">Quiz Submitted!</h2>
-    <p style="color:var(--text2);max-width:360px;line-height:1.65;margin-bottom:1.75rem">
-      Thank you for participating in the quiz!. Your instructor will review the results.</p>
+    <div class="score-display">
+      <div class="score-big" id="s-score-big">0/0</div>
+      <div class="score-sub" id="s-score-pct">0% correct</div>
+    </div>
+    <p style="color:var(--text2);max-width:360px;line-height:1.65;margin:.75rem 0 1.5rem">
+      Thank you for participating! Your instructor will review the results.</p>
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.5rem;text-align:center;max-width:260px">
       <p style="color:var(--text3);font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.35rem">Submitted by</p>
       <p style="font-size:1.08rem;font-weight:600" id="s-name"></p>
@@ -229,10 +253,23 @@
 <div id="modal-root"></div>
 <div id="toast" class="toast hidden"></div>
 
+<!-- Music Player (ambient) -->
+<div class="music-player hidden" id="music-player">
+  <button class="music-btn" id="music-toggle" onclick="toggleMusic()" title="Toggle music">▶</button>
+  <div class="music-info">
+    <div class="music-title" id="music-title">Ambient Focus</div>
+    <div class="music-wave paused" id="music-wave">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+  </div>
+  <input type="range" class="vol-slider" id="vol-slider" min="0" max="1" step="0.05" value="0.3" oninput="setVol(this.value)" title="Volume"/>
+  <button class="music-btn" onclick="document.getElementById('music-player').classList.add('hidden')" title="Hide">✕</button>
+</div>
+
 <!-- Firebase 9 compat SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
- <script src="script.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
