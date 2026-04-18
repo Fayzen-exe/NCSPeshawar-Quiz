@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>NCSPeshawar</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app" id="app">
+
+<!-- INIT -->
+<div class="screen active" id="screen-init">
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8rem">
+    <div class="logo-mark">⚡</div>
+    <div style="font-family:var(--font-d);font-size:2rem;color:var(--text)">NCS<em style="color:var(--accent2);font-style:italic">Peshawar</em></div>
+    <div class="spinner"></div>
+    <p style="color:var(--text3);font-size:.82rem">Connecting to NCSPeshawar...</p>
+  </div>
+</div>
+
+<!-- LANDING -->
+<div class="screen" id="screen-landing">
+  <div class="hero">
+    <div class="logo-mark"><img src="NCS.png" alt="" width="60" height="60"></div>
+    <h1 class="brand">NCS<em>Peshawar</em></h1>
+    <p class="tagline">Create, host &amp; track quizzes — Where Logic Meets Learning</p>
+    <div style="display:flex;flex-direction:column;gap:.65rem;width:100%;max-width:320px">
+      <button class="btn btn-p btn-lg" onclick="goTo('screen-join')">🎯 Join a Quiz</button>
+      <button class="btn btn-g btn-lg" onclick="goTo('screen-auth')">🔐 Admin Login / Register</button>
+    </div>
+    <p style="color:var(--text3);font-size:.74rem;margin-top:2rem;font-family:var(--font-m)">Powered by Fayzen </p>
+  </div>
+</div>
+
+<!-- AUTH -->
+<div class="screen" id="screen-auth">
+  <div class="nav">
+    <div class="nav-logo">NCS<em>Peshawar</em></div>
+    <button class="btn btn-g btn-sm" onclick="goTo('screen-landing')">← Back</button>
+  </div>
+  <div class="hero">
+    <div class="card" style="width:100%;max-width:420px">
+      <div class="tabs">
+        <div class="tab active" id="atab-li" onclick="authTab('login')">Log In</div>
+        <div class="tab" id="atab-reg" onclick="authTab('register')">Create Account</div>
+      </div>
+
+      <!-- LOGIN -->
+      <div id="form-login">
+        <div style="text-align:center;margin-bottom:1.2rem">
+          <div style="font-size:1.75rem;margin-bottom:.3rem">🔐</div>
+          <p style="color:var(--text2);font-size:.86rem">Access your admin panel</p>
+        </div>
+        <div id="li-err" class="erbox hidden"></div>
+        <div class="iw"><label>Email Address</label>
+          <input id="li-email" type="email" placeholder="you@example.com" autocomplete="email" onkeypress="if(event.key==='Enter')doLogin()"/></div>
+        <div class="iw"><label>Password</label>
+          <div class="pw-wrap">
+            <input id="li-pass" type="password" placeholder="••••••••" autocomplete="current-password" onkeypress="if(event.key==='Enter')doLogin()"/>
+            <button class="pw-eye" onclick="togglePw('li-pass',this)" type="button">👁</button>
+          </div>
+        </div>
+        <button class="btn btn-p btn-lg" style="margin-top:.6rem" onclick="doLogin()" id="li-btn">Log In →</button>
+        <p style="text-align:center;margin-top:.85rem;font-size:.8rem;color:var(--text3)">No account? <span style="color:var(--accent2);cursor:pointer;font-weight:500" onclick="authTab('register')">Create one free →</span></p>
+      </div>
+
+      <!-- REGISTER -->
+      <div id="form-register" class="hidden">
+        <div style="text-align:center;margin-bottom:1.2rem">
+          <div style="font-size:1.75rem;margin-bottom:.3rem">✨</div>
+          <p style="color:var(--text2);font-size:.86rem">Create your free admin account</p>
+        </div>
+        <div id="reg-err" class="erbox hidden"></div>
+        <div class="iw"><label>Full Name</label>
+          <input id="reg-name" type="text" placeholder="e.g. Muhammad Faizan Ud Din" autocomplete="name"/></div>
+        <div class="iw"><label>Email Address</label>
+          <input id="reg-email" type="email" placeholder="you@example.com" autocomplete="email"/></div>
+        <div class="iw"><label>Password <span style="color:var(--text3);font-weight:400;text-transform:none">(min 6 chars)</span></label>
+          <div class="pw-wrap">
+            <input id="reg-pass" type="password" placeholder="Create a strong password" autocomplete="new-password" onkeypress="if(event.key==='Enter')doRegister()"/>
+            <button class="pw-eye" onclick="togglePw('reg-pass',this)" type="button">👁</button>
+          </div>
+        </div>
+        <button class="btn btn-p btn-lg" style="margin-top:.6rem" onclick="doRegister()" id="reg-btn">Create Account →</button>
+        <p style="text-align:center;margin-top:.85rem;font-size:.8rem;color:var(--text3)">Already have account? <span style="color:var(--accent2);cursor:pointer;font-weight:500" onclick="authTab('login')">Log in →</span></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JOIN -->
+<div class="screen" id="screen-join">
+  <div class="nav">
+    <div class="nav-logo">NCS<em>Peshawar</em></div>
+    <button class="btn btn-g btn-sm" onclick="goTo('screen-landing')">← Back</button>
+  </div>
+  <div class="hero">
+    <div class="card" style="width:100%;max-width:400px">
+      <div style="text-align:center;margin-bottom:1.4rem">
+        <div style="font-size:1.85rem;margin-bottom:.4rem">🎯</div>
+        <h2 style="font-size:1.25rem;font-weight:600;margin-bottom:.22rem">Join a Quiz</h2>
+        <p style="color:var(--text2);font-size:.85rem">Enter the code from your instructor</p>
+      </div>
+      <div id="join-err" class="erbox hidden"></div>
+      <div class="iw"><label>Your Name</label>
+        <input id="p-name" type="text" placeholder="e.g. Faizan Khan" maxlength="50" autocomplete="name"/></div>
+      <div class="iw"><label>Quiz Code</label>
+        <input id="p-code" type="text" placeholder="e.g. AB12CD" maxlength="8"
+          style="text-transform:uppercase;letter-spacing:.18em;font-family:var(--font-m);font-size:1.08rem"
+          oninput="this.value=this.value.toUpperCase()" onkeypress="if(event.key==='Enter')joinQuiz()"/></div>
+      <button class="btn btn-p btn-lg" style="margin-top:.5rem" onclick="joinQuiz()" id="join-btn">Join Quiz →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div class="screen" id="screen-admin">
+  <div class="nav">
+    <div class="nav-logo">NCS<em>Peshawar</em></div>
+    <div style="display:flex;align-items:center;gap:.6rem">
+      <span class="badge bp" id="admin-badge">Admin</span>
+      <button class="btn btn-g btn-sm" onclick="adminLogout()">Log Out</button>
+    </div>
+  </div>
+  <div class="page">
+    <div class="ph">
+      <h2 id="admin-greeting">My Panel</h2>
+      <p>Manage your quizzes — results visible from any device, anywhere in the world</p>
+    </div>
+    <div class="tabs" id="admin-tabs">
+      <div class="tab active" onclick="switchTab('quizzes')">📋 My Quizzes</div>
+      <div class="tab" onclick="switchTab('results')">📊 All Results</div>
+    </div>
+    <div id="tab-quizzes">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:.85rem">
+        <button class="btn btn-p btn-sm" onclick="openCreate()">+ New Quiz</button>
+      </div>
+      <div id="quiz-list"><div class="spinner"></div></div>
+    </div>
+    <div id="tab-results" class="hidden">
+      <div id="results-wrap"><div class="spinner"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- EDITOR -->
+<div class="screen" id="screen-editor">
+  <div class="nav">
+    <div class="nav-logo">NCS<em>Peshawar</em></div>
+    <div style="display:flex;gap:.45rem">
+      <button class="btn btn-g btn-sm" onclick="goTo('screen-admin');renderQuizList()">← Back</button>
+      <button class="btn btn-s btn-sm" onclick="saveQuiz()" id="save-btn">💾 Save</button>
+    </div>
+  </div>
+  <div class="page">
+    <div class="ph"><h2 id="editor-title">Create Quiz</h2></div>
+    <div class="card" style="margin-bottom:1.1rem">
+      <div class="iw" style="margin:0 0 .65rem"><label>Quiz Title</label>
+        <input id="eq-title" type="text" placeholder="Enter quiz title..."/></div>
+      <div class="iw" style="margin:0"><label>Topic for AI Generation</label>
+        <input id="eq-topic" type="text" placeholder="e.g. Pakistan History, JavaScript, World Geography..."/></div>
+      <div style="display:flex;gap:.55rem;margin-top:.85rem;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-p btn-sm" id="ai-btn" onclick="aiGen()">✨ AI Generate 30 Questions</button>
+        <span style="color:var(--text3);font-size:.78rem">or build manually below</span>
+      </div>
+    </div>
+    <div id="ai-load" class="hidden"><div class="ldots"><span></span><span></span><span></span></div>
+      <p style="text-align:center;color:var(--text2);font-size:.85rem;margin-top:-.4rem">Generating with AI...</p></div>
+    <div id="q-builder"></div>
+    <div style="display:flex;gap:.55rem;margin-top:.9rem;flex-wrap:wrap">
+      <button class="btn btn-g btn-sm" onclick="addQ()">+ Add Question</button>
+      <button class="btn btn-p btn-sm" onclick="saveQuiz()">Save Quiz</button>
+    </div>
+  </div>
+</div>
+
+<!-- QUIZ TAKING -->
+<div class="screen" id="screen-quiz">
+  <div class="nav">
+    <div class="nav-logo">NCS<em>Peshawar</em></div>
+    <span class="badge bp" id="q-plabel"></span>
+  </div>
+  <div class="page">
+    <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1.1rem">
+      <div class="pdots" id="pdots"></div>
+      <span id="q-counter" style="font-size:.76rem;color:var(--text3);font-family:var(--font-m);white-space:nowrap">Q 1/30</span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <span style="color:var(--text2);font-size:.83rem">Question <span id="q-num">1</span></span>
+      <div class="timer-ring">
+        <svg width="52" height="52" viewBox="0 0 52 52">
+          <circle cx="26" cy="26" r="21" fill="none" stroke="var(--surface3)" stroke-width="4"/>
+          <circle id="tc" cx="26" cy="26" r="21" fill="none" stroke="var(--accent)" stroke-width="4"
+            stroke-dasharray="131.95" stroke-dashoffset="0" stroke-linecap="round"
+            style="transition:stroke-dashoffset .5s linear,stroke .4s"/>
+        </svg>
+        <span class="tnum" id="tdisp">10</span>
+      </div>
+    </div>
+    <div class="qbox">
+      <div style="font-size:.7rem;font-weight:500;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6rem">Multiple Choice</div>
+      <div class="qtext" id="qtext">Loading...</div>
+      <div id="qopts"></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:.85rem">
+      <button class="btn btn-p btn-sm hidden" id="next-btn" onclick="nextQ()">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUCCESS -->
+<div class="screen" id="screen-success">
+  <div class="nav"><div class="nav-logo">NCS<em>Peshawar</em></div></div>
+  <div class="sscreen">
+    <div class="sicon">✓</div>
+    <h2 style="font-size:1.55rem;font-weight:600;margin-bottom:.45rem">Quiz Submitted!</h2>
+    <p style="color:var(--text2);max-width:360px;line-height:1.65;margin-bottom:1.75rem">
+      Thank you for participating in the quiz!. Your instructor will review the results.</p>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.5rem;text-align:center;max-width:260px">
+      <p style="color:var(--text3);font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.35rem">Submitted by</p>
+      <p style="font-size:1.08rem;font-weight:600" id="s-name"></p>
+    </div>
+    <button class="btn btn-g btn-sm" style="margin-top:1.75rem" onclick="goTo('screen-landing')">Back to Home</button>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+<div id="toast" class="toast hidden"></div>
+
+<!-- Firebase 9 compat SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+ <script src="script.js"></script>
+</body>
+</html>
