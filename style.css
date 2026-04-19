@@ -218,4 +218,7 @@ h1.brand em{color:var(--accent2);font-style:italic}
 .score-big{font-size:3rem;font-weight:700;font-family:var(--font-m);background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .score-sub{font-size:.85rem;color:var(--text2);margin-top:.3rem}
 
+.pts-select:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 2px rgba(124,106,247,.2)}
+.pts-select:hover{border-color:var(--accent2)!important}
+
 @media(max-width:600px){.og{grid-template-columns:1fr}.sgrid{grid-template-columns:1fr 1fr}.page{padding:1rem}.nav{padding:.65rem 1rem}.match-wrap{grid-template-columns:1fr}.analytics-grid{grid-template-columns:1fr 1fr}.music-player{bottom:.7rem;left:.7rem;padding:.5rem .75rem}.podium{gap:.5rem}}

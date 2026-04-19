@@ -70,8 +70,17 @@ function fbMsg(code){
   return({'auth/email-already-in-use':'User already exists. Please sign in.','auth/invalid-email':'Please enter a valid email address.','auth/weak-password':'Password must be at least 6 characters.','auth/user-not-found':'Email or password is incorrect.','auth/wrong-password':'Email or password is incorrect.','auth/invalid-credential':'Email or password is incorrect.','auth/too-many-requests':'Too many attempts. Please wait a few minutes.','auth/network-request-failed':'Network error. Check your internet connection.','auth/operation-not-allowed':'Email/password sign-in is not enabled in Firebase Console.'})[code]||'Email or password is incorrect.';
 }
 
-// ── Timer Control ─────────────────────────────────────────────────────────────
+// ── Timer / Points Controls ───────────────────────────────────────────────────
+// NCS AI — uses script-questions.js bank (10k+ questions)
+function _ncsAI_local(topic, qtype, count){
+  if(typeof NCS_getQuestions === 'function'){
+    return NCS_getQuestions(topic, qtype, count);
+  }
+  // Fallback if script-questions.js not loaded
+  return [];
+}
 function updTimerVal(v){setTxt('timer-val-disp',v+' sec');}
+function updDefPoints(v){setTxt('defpoints-val-disp',v+' pt'+(parseInt(v)>1?'s':''));}
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 function authTab(t){
@@ -144,10 +153,11 @@ async function renderQuizList(){
     c.innerHTML=quizzes.map(q=>{
       const badge=q.active?`<span class="badge bg">🟢 Live</span>`:`<span class="badge ba">Draft</span>`;
       const timerSec=q.timerSec||10;
+      const totalPts=(q.questions||[]).reduce((s,qu)=>s+(qu.points||1),0);
       return`<div class="qi">
         <div class="qi-info">
           <div class="qi-title">${esc(q.title)}</div>
-          <div class="qi-meta">Code: ${q.code} · ${(q.questions||[]).length} Qs · ${counts[q.id]||0} submissions · ⏱ ${timerSec}s/Q</div>
+          <div class="qi-meta">Code: ${q.code} · ${(q.questions||[]).length} Qs · ${totalPts} pts · ${counts[q.id]||0} submissions · ⏱ ${timerSec}s/Q</div>
         </div>
         <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
           ${badge}
@@ -194,6 +204,8 @@ function openCreate(){
   document.getElementById('eq-topic').value='';
   document.getElementById('eq-timer').value=10;
   updTimerVal(10);
+  document.getElementById('eq-defpoints').value=1;
+  updDefPoints(1);
   renderQBuilder([]);
   goTo('screen-editor');
 }
@@ -210,7 +222,12 @@ async function editQuiz(id){
     const timer=q.timerSec||10;
     document.getElementById('eq-timer').value=timer;
     updTimerVal(timer);
-    renderQBuilder(q.questions||[]);
+    // Infer most common point value for the default slider
+    const qs=q.questions||[];
+    const commonPts=qs.length?Math.round(qs.reduce((s,qu)=>s+(qu.points||1),0)/qs.length):1;
+    document.getElementById('eq-defpoints').value=commonPts;
+    updDefPoints(commonPts);
+    renderQBuilder(qs);
     goTo('screen-editor');
   }catch(e){toast('Error loading quiz','error');}
 }
@@ -259,14 +276,21 @@ function renderQCard(q,i){
       <button class="btn btn-g btn-sm" style="margin-top:.4rem" onclick="addPair(${i})">+ Add Pair</button>`;
   }
   const typeLabel={mcq:'MCQ',truefalse:'True/False',fill:'Fill Blank',match:'Match Pairs'}[type];
+  const pts=q.points||1;
+  const ptsOpts=[1,2,3,4,5,6,7,8,9,10].map(v=>`<option value="${v}"${pts===v?' selected':''}>${v} pt${v>1?'s':''}</option>`).join('');
   return`<div class="qcard" id="qc${i}" data-type="${type}">
     <span class="qnum">Q${i+1}</span>
     <span class="qtype-badge">${typeLabel}</span>
     <div class="iw" style="margin:0 0 .5rem;padding-right:5rem"><label>Question ${i+1}</label>
       <textarea rows="2" placeholder="Type your question here...">${esc(q.text||'')}</textarea></div>
     ${inner}
-    <div style="display:flex;justify-content:flex-end;margin-top:.65rem">
-      <button class="btn btn-d btn-sm" onclick="removeQ(${i})">Remove</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.75rem;flex-wrap:wrap;gap:.5rem">
+      <div style="display:flex;align-items:center;gap:.55rem">
+        <span style="font-size:.7rem;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:500">⭐ Points:</span>
+        <select class="pts-select" style="background:var(--surface3);border:1px solid var(--border2);border-radius:7px;color:var(--accent3);font-family:var(--font-m);font-size:.8rem;font-weight:600;padding:.25rem .55rem;outline:none;cursor:pointer">${ptsOpts}</select>
+      </div>
+      <button class="btn btn-d btn-sm" onclick="removeQ(${i})">Remove</button>
+    </div>
   </div>`;
 }
 
@@ -283,23 +307,24 @@ function getQs(){
   return Array.from(document.querySelectorAll('.qcard')).map(card=>{
     const type=card.dataset.type||'mcq';
     const text=card.querySelector('textarea').value.trim();
+    const points=parseInt(card.querySelector('.pts-select')?.value||'1')||1;
     if(type==='mcq'){
       const opts=Array.from(card.querySelectorAll('.oi input[type=text]')).map(x=>x.value.trim());
       let correct=0;card.querySelectorAll('input[type=radio]').forEach((r,j)=>{if(r.checked)correct=j;});
-      return{type,text,options:opts,correct};
+      return{type,text,options:opts,correct,points};
     }else if(type==='truefalse'){
       let correct=0;card.querySelectorAll('input[type=radio]').forEach((r,j)=>{if(r.checked)correct=j;});
-      return{type,text,options:['True','False'],correct};
+      return{type,text,options:['True','False'],correct,points};
     }else if(type==='fill'){
       const answer=card.querySelector('.fill-ans-input')?.value.trim()||'';
-      return{type,text,answer};
+      return{type,text,answer,points};
     }else if(type==='match'){
       const lefts=Array.from(card.querySelectorAll('.match-left')).map(x=>x.value.trim());
       const rights=Array.from(card.querySelectorAll('.match-right')).map(x=>x.value.trim());
       const pairs=lefts.map((l,i)=>({left:l,right:rights[i]||''}));
-      return{type,text,pairs};
+      return{type,text,pairs,points};
     }
-    return{type,text};
+    return{type,text,points};
   });
 }
 
@@ -314,7 +339,8 @@ function removeQ(i){const q=getQs();q.splice(i,1);renderQBuilder(q);}
 function addQ(type='mcq'){
   const q=getQs();
   if(q.length>=50){toast('Max 50 questions','error');return;}
-  const newQ={type,text:''};
+  const defPts=parseInt(document.getElementById('eq-defpoints')?.value||'1')||1;
+  const newQ={type,text:'',points:defPts};
   if(type==='mcq')Object.assign(newQ,{options:['','','',''],correct:0});
   else if(type==='truefalse')Object.assign(newQ,{options:['True','False'],correct:0});
   else if(type==='fill')Object.assign(newQ,{answer:''});
@@ -327,31 +353,24 @@ function addQ(type='mcq'){
 async function aiGen(){
   const topic=document.getElementById('eq-topic').value.trim();
   const qtype=document.getElementById('ai-qtype').value;
+  const count=parseInt(document.getElementById('ai-count')?.value||'15');
+  const defPts=parseInt(document.getElementById('eq-defpoints')?.value||'1')||1;
   if(!topic){toast('Enter a topic first','error');return;}
   show('ai-load');
   document.getElementById('ai-btn').disabled=true;
   document.getElementById('q-builder').innerHTML='';
-  let prompt='';
-  if(qtype==='mcq'){
-    prompt=`Generate exactly 15 multiple choice questions about: "${topic}". Return ONLY a JSON array, no markdown. Format: [{"type":"mcq","text":"question","options":["A","B","C","D"],"correct":0}] where correct is 0-based index.`;
-  }else if(qtype==='truefalse'){
-    prompt=`Generate exactly 15 True/False questions about: "${topic}". Return ONLY a JSON array, no markdown. Format: [{"type":"truefalse","text":"statement","options":["True","False"],"correct":0}] where correct is 0 for True, 1 for False.`;
-  }else if(qtype==='fill'){
-    prompt=`Generate exactly 15 fill-in-the-blank questions about: "${topic}". Return ONLY a JSON array, no markdown. Format: [{"type":"fill","text":"question with ___ blank","answer":"correct answer"}]`;
-  }
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:3000,
-        messages:[{role:'user',content:prompt}]})
-    });
-    const d=await r.json();
-    let raw=d.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
-    const qs=JSON.parse(raw);
-    if(!Array.isArray(qs))throw new Error();
-    renderQBuilder(qs.slice(0,50));
-    toast(`✨ Generated ${Math.min(qs.length,50)} questions!`);
-  }catch(e){toast('AI generation failed. Add manually.','error');renderQBuilder([]);}
+    const qs=_ncsAI_local(topic,qtype,count);
+    if(!Array.isArray(qs)||!qs.length)throw new Error('No questions generated');
+    const typed=qs.map(q=>({...q,type:q.type||qtype,points:defPts}));
+    renderQBuilder(typed.slice(0,50));
+    toast(`🤖 NCS AI generated ${typed.slice(0,50).length} questions!`);
+  }catch(e){
+    console.error('NCS AI error:',e);
+    const msg=e.message||'Unknown error';
+    toast(`NCS AI: ${msg}`, 'error');
+    renderQBuilder([]);
+  }
   hide('ai-load');
   document.getElementById('ai-btn').disabled=false;
 }
@@ -422,7 +441,14 @@ function renderQ(){
   setTxt('qtext',q.text);hide('next-btn');
   // type label
   const typeLabels={mcq:'Multiple Choice',truefalse:'True / False',fill:'Fill in the Blank',match:'Match the Pairs'};
-  setTxt('q-type-label',typeLabels[q.type||'mcq']||'Multiple Choice');
+  const pts=q.points||1;
+  const typeLabelEl=document.getElementById('q-type-label');
+  if(typeLabelEl){
+    typeLabelEl.querySelector('span:first-child').textContent=typeLabels[q.type||'mcq']||'Multiple Choice';
+  }
+  // show points badge
+  const ptsBadge=document.getElementById('q-pts-badge');
+  if(ptsBadge){ptsBadge.textContent=`⭐ ${pts} pt${pts>1?'s':''}`;}
   // dots
   document.getElementById('pdots').innerHTML=S.quiz.questions.map((_,j)=>{
     let c='dot';
@@ -537,23 +563,28 @@ function nextQ(){clearInterval(S.timer);if(S.qi<S.quiz.questions.length-1){S.qi+
 
 async function submitQuiz(){
   let score=0;
+  let maxScore=0;
   S.quiz.questions.forEach((q,i)=>{
+    const pts=q.points||1;
+    maxScore+=pts;
     const ans=S.answers[i];
     if(ans===undefined)return;
     const type=q.type||'mcq';
-    if(type==='mcq'||type==='truefalse'){if(ans===q.correct)score++;}
-    else if(type==='fill'){if(String(ans).toLowerCase()===String(q.answer||'').toLowerCase())score++;}
-    else if(type==='match'){if(typeof ans==='object'&&Object.keys(ans).length===(q.pairs||[]).length)score++;}
+    let correct=false;
+    if(type==='mcq'||type==='truefalse')correct=(ans===q.correct);
+    else if(type==='fill')correct=(String(ans).toLowerCase()===String(q.answer||'').toLowerCase());
+    else if(type==='match')correct=(typeof ans==='object'&&Object.keys(ans).length===(q.pairs||[]).length);
+    if(correct)score+=pts;
   });
   const total=S.quiz.questions.length;
-  const pct=Math.round((score/total)*100);
-  setTxt('s-score-big',`${score}/${total}`);
-  setTxt('s-score-pct',`${pct}% correct`);
+  const pct=maxScore>0?Math.round((score/maxScore)*100):0;
+  setTxt('s-score-big',`${score}/${maxScore} pts`);
+  setTxt('s-score-pct',`${pct}% · ${total} questions`);
   try{
     await C.results().add({
       participantId:S.participant.id,participantName:S.participant.name,
       quizId:S.quiz.id,quizTitle:S.quiz.title,quizCode:S.quiz.code,
-      adminUid:S.quiz.adminUid,score,total,pct,
+      adminUid:S.quiz.adminUid,score,maxScore,total,pct,
       answers:S.answers,submittedAt:Date.now()
     });
   }catch(e){console.warn('Result save error:',e.code);}
@@ -584,8 +615,9 @@ async function renderResults(){
       }
       const avg=(results.reduce((s,r)=>s+r.score,0)/results.length).toFixed(1);
       const high=Math.max(...results.map(r=>r.score));
-      const perfect=results.filter(r=>r.score===r.total).length;
+      const perfect=results.filter(r=>r.score===(r.maxScore||r.total)).length;
       const qTotal=quiz.questions?.length||results[0]?.total||'?';
+      const maxPts=quiz.questions?.reduce((s,q)=>s+(q.points||1),0)||qTotal;
       // export buttons
       const exportBtns=`<div class="export-row">
         <span>Export:</span>
@@ -624,8 +656,8 @@ async function renderResults(){
         ${exportBtns}
         <div class="sgrid">
           <div class="sc"><div class="sv">${results.length}</div><div class="sl">Participants</div></div>
-          <div class="sc"><div class="sv">${avg}</div><div class="sl">Avg Score</div></div>
-          <div class="sc"><div class="sv">${high}/${qTotal}</div><div class="sl">Top Score</div></div>
+          <div class="sc"><div class="sv">${avg}</div><div class="sl">Avg Points</div></div>
+          <div class="sc"><div class="sv">${high}/${maxPts}</div><div class="sl">Top Score</div></div>
           <div class="sc"><div class="sv">${perfect}</div><div class="sl">Perfect</div></div>
         </div>
         ${podiumHtml}
@@ -634,14 +666,15 @@ async function renderResults(){
           <thead><tr><th>#</th><th>Participant</th><th>Score</th><th>%</th><th>Bar</th><th>Time</th></tr></thead>
           <tbody>${results.map((r,i)=>{
             const rc=i===0?'r1':i===1?'r2':i===2?'r3':'rn';
-            const pct=Math.round((r.score/(r.total||qTotal))*100);
+            const rMax=r.maxScore||r.total||maxPts;
+            const pct=Math.round((r.score/rMax)*100);
             const col=pct>=70?'var(--green)':pct>=40?'var(--amber)':'var(--red)';
             const ini=r.participantName.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
             const dt=new Date(r.submittedAt).toLocaleString();
             return`<tr>
               <td><span class="rnk ${rc}">${i+1}</span></td>
               <td><div style="display:flex;align-items:center;gap:.5rem"><div class="av">${ini}</div><span style="font-weight:500">${esc(r.participantName)}</span></div></td>
-              <td><span style="font-weight:600;color:${col}">${r.score}/${r.total||qTotal}</span></td>
+              <td><span style="font-weight:600;color:${col}">${r.score}/${rMax} pts</span></td>
               <td><span style="color:${col};font-family:var(--font-m);font-size:.82rem">${pct}%</span></td>
               <td style="min-width:85px"><div class="sbarw"><div class="sbar" style="width:${pct}%"></div></div></td>
               <td style="color:var(--text3);font-size:.73rem;font-family:var(--font-m)">${dt}</td>
@@ -678,9 +711,9 @@ async function renderAnalytics(){
     }
     if(!allResults.length){wrap.innerHTML=`<div style="text-align:center;padding:2.5rem;color:var(--text3)"><p>No submissions yet.</p></div>`;return;}
     const totalPart=allResults.length;
-    const avgScore=(allResults.reduce((s,r)=>s+(r.pct||Math.round(r.score/r.total*100)),0)/totalPart).toFixed(1);
-    const passRate=Math.round((allResults.filter(r=>(r.pct||Math.round(r.score/r.total*100))>=50).length/totalPart)*100);
-    const perfectCount=allResults.filter(r=>r.score===r.total).length;
+    const avgAcc=(allResults.reduce((s,r)=>s+(r.pct||0),0)/totalPart).toFixed(1);
+    const passRate=Math.round((allResults.filter(r=>(r.pct||0)>=50).length/totalPart)*100);
+    const perfectCount=allResults.filter(r=>r.score>0&&r.score===(r.maxScore||r.total)).length;
     // per-question accuracy across all quizzes
     let qAccHtml='';
     for(const quiz of quizzes){
@@ -712,17 +745,17 @@ async function renderAnalytics(){
         </div>`).join('')}
       </div>`;
     }
-    // player performance table
+    // player performance table — use maxScore for weighted accuracy
     const playerMap={};
     allResults.forEach(r=>{
-      if(!playerMap[r.participantName])playerMap[r.participantName]={name:r.participantName,attempts:0,totalScore:0,totalQs:0};
+      if(!playerMap[r.participantName])playerMap[r.participantName]={name:r.participantName,attempts:0,totalScore:0,totalMax:0};
       playerMap[r.participantName].attempts++;
-      playerMap[r.participantName].totalScore+=r.score;
-      playerMap[r.participantName].totalQs+=r.total;
+      playerMap[r.participantName].totalScore+=r.score||0;
+      playerMap[r.participantName].totalMax+=(r.maxScore||r.total||1);
     });
-    const players=Object.values(playerMap).sort((a,b)=>(b.totalScore/b.totalQs)-(a.totalScore/a.totalQs));
+    const players=Object.values(playerMap).sort((a,b)=>(b.totalScore/b.totalMax)-(a.totalScore/a.totalMax));
     const playerRows=players.slice(0,20).map((p,i)=>{
-      const acc=Math.round((p.totalScore/p.totalQs)*100);
+      const acc=Math.round((p.totalScore/p.totalMax)*100);
       const col=acc>=70?'var(--green)':acc>=40?'var(--amber)':'var(--red)';
       const rc=i===0?'r1':i===1?'r2':i===2?'r3':'rn';
       const ini=p.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
@@ -730,14 +763,15 @@ async function renderAnalytics(){
         <td><span class="rnk ${rc}">${i+1}</span></td>
         <td><div style="display:flex;align-items:center;gap:.5rem"><div class="av">${ini}</div><span style="font-weight:500">${esc(p.name)}</span></div></td>
         <td style="font-family:var(--font-m);font-size:.82rem">${p.attempts}</td>
-        <td><span style="color:${col};font-family:var(--font-m);font-weight:600">${acc}%</span></td>
-        <td style="min-width:85px"><div class="sbarw"><div class="sbar" style="width:${acc}%"></div></div></td>
+        <td><span style="color:${col};font-family:var(--font-m);font-weight:600">${p.totalScore}/${p.totalMax} pts</span></td>
+        <td><span style="color:${col};font-family:var(--font-m);font-size:.8rem">${acc}%</span></td>
+        <td style="min-width:70px"><div class="sbarw"><div class="sbar" style="width:${acc}%"></div></div></td>
       </tr>`;
     }).join('');
     wrap.innerHTML=`
       <div class="analytics-grid">
         <div class="ana-card"><div class="ana-val">${totalPart}</div><div class="ana-lbl">Total Submissions</div></div>
-        <div class="ana-card"><div class="ana-val">${avgScore}%</div><div class="ana-lbl">Avg Accuracy</div></div>
+        <div class="ana-card"><div class="ana-val">${avgAcc}%</div><div class="ana-lbl">Avg Accuracy</div></div>
         <div class="ana-card"><div class="ana-val">${passRate}%</div><div class="ana-lbl">Pass Rate (≥50%)</div></div>
         <div class="ana-card"><div class="ana-val">${perfectCount}</div><div class="ana-lbl">Perfect Scores</div></div>
         <div class="ana-card"><div class="ana-val">${quizzes.length}</div><div class="ana-lbl">Total Quizzes</div></div>
@@ -746,7 +780,7 @@ async function renderAnalytics(){
       <div class="card" style="margin-bottom:1rem">
         <h4 style="font-size:.9rem;font-weight:600;margin-bottom:.9rem">🏆 Player Leaderboard</h4>
         <div style="overflow-x:auto"><table class="rtbl">
-          <thead><tr><th>#</th><th>Player</th><th>Attempts</th><th>Accuracy</th><th>Bar</th></tr></thead>
+          <thead><tr><th>#</th><th>Player</th><th>Attempts</th><th>Total Points</th><th>Accuracy</th><th>Bar</th></tr></thead>
           <tbody>${playerRows}</tbody>
         </table></div>
       </div>
@@ -766,13 +800,14 @@ async function exportCSV(quizId,title){
   toast('Preparing CSV...','info');
   const results=await getResultsForQuiz(quizId);
   if(!results.length){toast('No results to export','error');return;}
-  const header=['Rank','Name','Score','Total','Percentage','Submitted At'];
+  const header=['Rank','Name','Points Earned','Max Points','Percentage','Questions','Submitted At'];
   const rows=results.map((r,i)=>[
     i+1,
     r.participantName,
     r.score,
+    r.maxScore||r.total,
+    (r.pct||Math.round((r.score/(r.maxScore||r.total))*100))+'%',
     r.total,
-    Math.round((r.score/r.total)*100)+'%',
     new Date(r.submittedAt).toLocaleString()
   ]);
   const csv=[header,...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -786,16 +821,19 @@ async function exportExcel(quizId,title){
   toast('Preparing Excel...','info');
   const results=await getResultsForQuiz(quizId);
   if(!results.length){toast('No results to export','error');return;}
-  // Build a simple HTML table that Excel can open
-  const rows=results.map((r,i)=>`<tr>
-    <td>${i+1}</td><td>${r.participantName}</td>
-    <td>${r.score}</td><td>${r.total}</td>
-    <td>${Math.round((r.score/r.total)*100)}%</td>
-    <td>${new Date(r.submittedAt).toLocaleString()}</td>
-  </tr>`).join('');
+  const rows=results.map((r,i)=>{
+    const maxPts=r.maxScore||r.total;
+    const pct=r.pct||Math.round((r.score/maxPts)*100);
+    return`<tr>
+      <td>${i+1}</td><td>${r.participantName}</td>
+      <td>${r.score}</td><td>${maxPts}</td>
+      <td>${pct}%</td><td>${r.total}</td>
+      <td>${new Date(r.submittedAt).toLocaleString()}</td>
+    </tr>`;
+  }).join('');
   const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
   <head><meta charset="UTF-8"><style>th{background:#7c6af7;color:#fff;padding:6px}td{padding:5px;border:1px solid #ccc}</style></head>
-  <body><table><thead><tr><th>Rank</th><th>Name</th><th>Score</th><th>Total</th><th>Percentage</th><th>Submitted At</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+  <body><table><thead><tr><th>Rank</th><th>Name</th><th>Points Earned</th><th>Max Points</th><th>Percentage</th><th>Questions</th><th>Submitted At</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
   const blob=new Blob([html],{type:'application/vnd.ms-excel'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=`${title.replace(/[^a-z0-9]/gi,'_')}_results.xls`;
@@ -806,13 +844,18 @@ async function exportPDF(quizId,title){
   toast('Preparing PDF...','info');
   const results=await getResultsForQuiz(quizId);
   if(!results.length){toast('No results to export','error');return;}
-  const rows=results.map((r,i)=>`<tr>
-    <td style="text-align:center">${i+1}</td>
-    <td>${r.participantName}</td>
-    <td style="text-align:center">${r.score}/${r.total}</td>
-    <td style="text-align:center">${Math.round((r.score/r.total)*100)}%</td>
-    <td style="font-size:11px">${new Date(r.submittedAt).toLocaleString()}</td>
-  </tr>`).join('');
+  const rows=results.map((r,i)=>{
+    const maxPts=r.maxScore||r.total;
+    const pct=r.pct||Math.round((r.score/maxPts)*100);
+    const col=pct>=70?'#22d3a0':pct>=40?'#fbbf24':'#f87171';
+    return`<tr>
+      <td style="text-align:center">${i+1}</td>
+      <td>${r.participantName}</td>
+      <td style="text-align:center;font-weight:600;color:${col}">${r.score}/${maxPts} pts</td>
+      <td style="text-align:center;color:${col}">${pct}%</td>
+      <td style="font-size:11px">${new Date(r.submittedAt).toLocaleString()}</td>
+    </tr>`;
+  }).join('');
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     body{font-family:Arial,sans-serif;padding:30px;color:#222}
     h1{color:#7c6af7;font-size:20px;margin-bottom:4px}
@@ -825,7 +868,7 @@ async function exportPDF(quizId,title){
   </style></head><body>
   <h1>NCSPeshawar Quiz Results</h1>
   <h2>${title} — Generated: ${new Date().toLocaleString()}</h2>
-  <table><thead><tr><th>#</th><th>Name</th><th>Score</th><th>%</th><th>Submitted</th></tr></thead>
+  <table><thead><tr><th>#</th><th>Name</th><th>Points</th><th>%</th><th>Submitted</th></tr></thead>
   <tbody>${rows}</tbody></table>
   <div class="footer">Total participants: ${results.length} | Powered by NCSPeshawar</div>
   </body></html>`;

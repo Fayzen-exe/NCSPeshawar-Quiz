@@ -123,12 +123,12 @@
   <div class="page">
     <div class="ph">
       <h2 id="admin-greeting">My Panel</h2>
-      <p>Manage your quizzes — results visible from any device, anywhere in the world</p>
+      <p>Create smarter quizzes and monitor performance instantly.</p>
     </div>
     <div class="tabs" id="admin-tabs">
       <div class="tab active" onclick="switchTab('quizzes')"> My Quizzes</div>
-      <div class="tab" onclick="switchTab('results')">All Results</div>
-      <div class="tab" onclick="switchTab('analytics')">Analytics</div>
+      <div class="tab" onclick="switchTab('results')"> All Results</div>
+      <div class="tab" onclick="switchTab('analytics')"> Analytics</div>
     </div>
     <div id="tab-quizzes">
       <div style="display:flex;justify-content:flex-end;margin-bottom:.85rem">
@@ -171,16 +171,40 @@
           <span class="tval" id="timer-val-disp">10 sec</span>
         </div>
       </div>
-      <div style="display:flex;gap:.55rem;margin-top:.85rem;flex-wrap:wrap;align-items:center">
-        <button class="btn btn-p btn-sm" id="ai-btn" onclick="aiGen()">✨ AI Generate Questions</button>
-        <div class="iw" style="margin:0;flex:1;min-width:120px">
-          <select id="ai-qtype" style="padding:.38rem .7rem;font-size:.82rem">
+      <!-- Default Points Per Question -->
+      <div style="margin-bottom:.85rem">
+        <label style="display:block;font-size:.72rem;font-weight:500;color:var(--text2);margin-bottom:.4rem;letter-spacing:.05em;text-transform:uppercase"> Default Points Per Question</label>
+        <div class="timer-ctrl">
+          <label>1pt</label>
+          <input type="range" id="eq-defpoints" min="1" max="10" step="1" value="1" oninput="updDefPoints(this.value)"/>
+          <label>10pt</label>
+          <span class="tval" id="defpoints-val-disp">1 pt</span>
+        </div>
+        <p style="color:var(--text3);font-size:.72rem;margin-top:.3rem">You can override per question below ↓</p>
+      </div>
+      <!-- AI Generate Row -->
+      <div style="background:rgba(124,106,247,.06);border:1px solid rgba(124,106,247,.2);border-radius:10px;padding:.75rem 1rem;margin-top:.5rem">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem">
+          <span style="font-size:.95rem">🤖</span>
+          <span style="font-size:.78rem;font-weight:600;color:var(--accent3)">NCS AI Generator</span>
+          <span style="font-size:.65rem;color:var(--text3);background:rgba(34,211,160,.1);border:1px solid rgba(34,211,160,.2);border-radius:5px;padding:.1rem .4rem;margin-left:auto">Powered by Fayzen </span>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-p btn-sm" id="ai-btn" onclick="aiGen()">✨ Generate with NCS AI</button>
+          <select id="ai-qtype" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--font);font-size:.8rem;padding:.38rem .7rem;outline:none;cursor:pointer">
             <option value="mcq">Multiple Choice</option>
             <option value="truefalse">True / False</option>
             <option value="fill">Fill in the Blank</option>
           </select>
+          <select id="ai-count" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--font);font-size:.8rem;padding:.38rem .7rem;outline:none;cursor:pointer">
+            <option value="5">5 Questions</option>
+            <option value="10">10 Questions</option>
+            <option value="15" selected>15 Questions</option>
+            <option value="20">20 Questions</option>
+            <option value="30">30 Questions</option>
+          </select>
+          <span style="color:var(--text3);font-size:.75rem">or build manually below</span>
         </div>
-        <span style="color:var(--text3);font-size:.78rem">or build manually below</span>
       </div>
     </div>
     <div id="ai-load" class="hidden"><div class="ldots"><span></span><span></span><span></span></div>
@@ -220,7 +244,10 @@
       </div>
     </div>
     <div class="qbox">
-      <div id="q-type-label" style="font-size:.7rem;font-weight:500;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6rem">Multiple Choice</div>
+      <div id="q-type-label" style="font-size:.7rem;font-weight:500;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6rem;display:flex;align-items:center;justify-content:space-between">
+        <span>Multiple Choice</span>
+        <span id="q-pts-badge" style="background:rgba(251,191,36,.15);color:var(--amber);border:1px solid rgba(251,191,36,.25);border-radius:6px;padding:.15rem .55rem;font-size:.72rem;letter-spacing:.04em">⭐ 1 pt</span>
+      </div>
       <div class="qtext" id="qtext">Loading...</div>
       <div id="qopts"></div>
     </div>
@@ -270,6 +297,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="script-questions.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
