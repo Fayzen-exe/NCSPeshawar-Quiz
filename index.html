@@ -13,8 +13,8 @@
 <!-- INIT -->
 <div class="screen active" id="screen-init">
   <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8rem">
-    <div class="logo-mark"><img src="NCS.png" alt="" width="60" height="60"></div>
-    <div style="font-family:var(--font-d);font-size:2rem;color:var(--text)">NCS<em style="color:var(--accent2);font-style:italic">Peshawar</em></div>
+    <div class="logo-mark"><img src="NCS.png" alt="" width="100" height="100"></div>
+    <div style="font-family:var(--font-d);font-size:2rem;color:var(--text)">NUML<em style="color:var(--accent2);font-style:italic">Computing Society</em></div>
     <div class="spinner"></div>
     <p style="color:var(--text3);font-size:.82rem">Connecting to NCSPeshawar...</p>
   </div>
@@ -23,21 +23,22 @@
 <!-- LANDING -->
 <div class="screen" id="screen-landing">
   <div class="hero">
-    <div class="logo-mark"><img src="NCS.png" alt="" width="60" height="60"></div>
-    <h1 class="brand">NCS<em>Peshawar</em></h1>
-    <p class="tagline">Create, host &amp; track quizzes — Where Logic Meets Learning</p>
+    <div class="logo-mark"><img src="NCS.png" alt="" width="100" height="100"></div>
+    <h1 class="brand">NUML<em>Computing Society</em></h1>
+    <p class="tagline"> is a student-led initiative at NUML Peshawar Campus  that brings together technology enthusiasts, programmers, designers, and innovators.
+</p>
     <div style="display:flex;flex-direction:column;gap:.65rem;width:100%;max-width:320px">
       <button class="btn btn-p btn-lg" onclick="goTo('screen-join')"> Join a Quiz</button>
       <button class="btn btn-g btn-lg" onclick="goTo('screen-auth')"> Admin Login / Register</button>
     </div>
-    <p style="color:var(--text3);font-size:.74rem;margin-top:2rem;font-family:var(--font-m)">Powered by Fayzen </p>
+    <p style="color:var(--text3);font-size:.74rem;margin-top:2rem;font-family:var(--font-m)">Organized by Depertment Of Computer Science </p>
   </div>
 </div>
 
 <!-- AUTH -->
 <div class="screen" id="screen-auth">
   <div class="nav">
-    <div class="nav-logo">NCS<em>Peshawar</em></div>
+    <div class="nav-logo">NUML<em>Computing Society</em></div>
     <button class="btn btn-g btn-sm" onclick="goTo('screen-landing')">← Back</button>
   </div>
   <div class="hero">
@@ -89,7 +90,7 @@
 <!-- JOIN -->
 <div class="screen" id="screen-join">
   <div class="nav">
-    <div class="nav-logo">NCS<em>Peshawar</em></div>
+    <div class="nav-logo">NUML<em>Computing Society</em></div>
     <button class="btn btn-g btn-sm" onclick="goTo('screen-landing')">← Back</button>
   </div>
   <div class="hero">
@@ -114,7 +115,7 @@
 <!-- ADMIN PANEL -->
 <div class="screen" id="screen-admin">
   <div class="nav">
-    <div class="nav-logo">NCS<em>Peshawar</em></div>
+    <div class="nav-logo">NUML<em>Computing Society</em></div>
     <div style="display:flex;align-items:center;gap:.6rem">
       <span class="badge bp" id="admin-badge">Admin</span>
       <button class="btn btn-g btn-sm" onclick="adminLogout()">Log Out</button>
@@ -148,7 +149,7 @@
 <!-- EDITOR -->
 <div class="screen" id="screen-editor">
   <div class="nav">
-    <div class="nav-logo">NCS<em>Peshawar</em></div>
+    <div class="nav-logo">NUML<em>Computing Society</em></div>
     <div style="display:flex;gap:.45rem">
       <button class="btn btn-g btn-sm" onclick="goTo('screen-admin');renderQuizList()">← Back</button>
       <button class="btn btn-s btn-sm" onclick="saveQuiz()" id="save-btn">💾 Save</button>
@@ -223,10 +224,11 @@
 <!-- QUIZ TAKING -->
 <div class="screen" id="screen-quiz">
   <div class="nav">
-    <div class="nav-logo">NCS<em>Peshawar</em></div>
+    <div class="nav-logo">NUML<em>Computing Society</em></div>
     <span class="badge bp" id="q-plabel"></span>
   </div>
   <div class="page">
+    <div id="host-ctrl-banner" class="hidden" style="background:rgba(124,106,247,.1);border:1px solid rgba(124,106,247,.25);border-radius:9px;padding:.42rem .9rem;font-size:.75rem;color:var(--accent3);display:none;align-items:center;gap:.5rem;margin-bottom:.65rem">📡 <span>Controlled by Host — timer synced live</span></div>
     <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1.1rem">
       <div class="pdots" id="pdots"></div>
       <span id="q-counter" style="font-size:.76rem;color:var(--text3);font-family:var(--font-m);white-space:nowrap">Q 1/30</span>
@@ -257,9 +259,74 @@
   </div>
 </div>
 
+<!-- HOST VIEW -->
+<div class="screen" id="screen-host">
+  <div class="nav">
+    <div class="nav-logo">NUML<em>Computing Society</em> <span style="font-size:.72rem;color:var(--accent2);font-family:var(--font-m);margin-left:.4rem">Host View</span></div>
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <span class="badge bg" id="hv-live-badge">🟢 Live</span>
+      <span class="badge bp" id="hv-code-badge" style="font-family:var(--font-m)"></span>
+      <button class="btn btn-d btn-sm" onclick="exitHostView()">✕ Exit</button>
+    </div>
+  </div>
+  <div style="display:flex;flex:1;overflow:hidden;min-height:0">
+    <!-- Sidebar: Participants -->
+    <div class="hv-sidebar" id="hv-sidebar">
+      <div class="hv-sidebar-title">👥 Participants <span class="badge bp" id="hv-pcount" style="margin-left:.3rem">0</span></div>
+      <div id="hv-participants-list" style="flex:1;overflow-y:auto"></div>
+    </div>
+    <!-- Main content -->
+    <div class="hv-main" style="flex:1;overflow-y:auto;padding:1.2rem">
+      <!-- Top bar: question progress + timer controls -->
+      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap">
+        <div class="hv-qnav">
+          <button class="btn btn-g btn-sm" id="hv-prev-btn" onclick="hvPrevQ()">← Prev</button>
+          <span id="hv-q-counter" style="font-family:var(--font-m);font-size:.82rem;color:var(--text2);white-space:nowrap">Q 1 / 1</span>
+          <button class="btn btn-g btn-sm" id="hv-next-btn" onclick="hvNextQ()">Next →</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto;flex-wrap:wrap">
+          <!-- Timer display + controls -->
+          <div class="hv-timer-box">
+            <div class="timer-ring" style="transform:scale(.85)">
+              <svg width="52" height="52" viewBox="0 0 52 52">
+                <circle cx="26" cy="26" r="21" fill="none" stroke="var(--surface3)" stroke-width="4"/>
+                <circle id="hv-tc" cx="26" cy="26" r="21" fill="none" stroke="var(--accent)" stroke-width="4"
+                  stroke-dasharray="131.95" stroke-dashoffset="0" stroke-linecap="round"
+                  style="transition:stroke-dashoffset .5s linear,stroke .4s"/>
+              </svg>
+              <span class="tnum" id="hv-tdisp">--</span>
+            </div>
+            <button class="btn btn-s btn-sm" id="hv-timer-btn" onclick="hvToggleTimer()">▶ Start</button>
+            <button class="btn btn-g btn-sm" onclick="hvResetTimer()" title="Reset timer">↺ Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Question Card -->
+      <div class="qbox" style="margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem">
+          <span id="hv-type-label" style="font-size:.7rem;font-weight:500;color:var(--text3);letter-spacing:.1em;text-transform:uppercase">Multiple Choice</span>
+          <span id="hv-pts-badge" style="background:rgba(251,191,36,.15);color:var(--amber);border:1px solid rgba(251,191,36,.25);border-radius:6px;padding:.15rem .55rem;font-size:.72rem">⭐ 1 pt</span>
+        </div>
+        <div class="qtext" id="hv-qtext">Loading...</div>
+        <div id="hv-qopts"></div>
+      </div>
+
+      <!-- Live Leaderboard -->
+      <div class="card" style="padding:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+          <h4 style="font-size:.88rem;font-weight:600">🏆 Live Leaderboard</h4>
+          <span style="font-size:.7rem;color:var(--text3);font-family:var(--font-m)" id="hv-lb-updated">–</span>
+        </div>
+        <div id="hv-leaderboard"><p style="color:var(--text3);font-size:.82rem;text-align:center;padding:.5rem">Waiting for submissions...</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- SUCCESS -->
 <div class="screen" id="screen-success">
-  <div class="nav"><div class="nav-logo">NCS<em>Peshawar</em></div></div>
+  <div class="nav"><div class="nav-logo">NUML<em>Computing Society</em></div></div>
   <div class="sscreen">
     <div class="sicon">✓</div>
     <h2 style="font-size:1.55rem;font-weight:600;margin-bottom:.45rem">Quiz Submitted!</h2>

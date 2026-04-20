@@ -28,6 +28,11 @@ const CIRC = 2 * Math.PI * 21;
 
 // ── UI Helpers ────────────────────────────────────────────────────────────────
 function goTo(id){
+  // If leaving quiz screen, stop host sync
+  const cur=document.querySelector('.screen.active');
+  if(cur && cur.id==='screen-quiz' && id!=='screen-quiz'){
+    pStopHostSync();
+  }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   window.scrollTo(0,0);
@@ -163,6 +168,7 @@ async function renderQuizList(){
           ${badge}
           <button class="btn btn-g btn-sm btn-icon" onclick="editQuiz('${q.id}')">✏</button>
           <button class="btn btn-g btn-sm btn-icon" onclick="showCode('${q.code}','${esc(q.title)}')">🔑</button>
+          ${q.active?`<button class="btn btn-b btn-sm" onclick="openHostView('${q.id}')">📺 Host View</button>`:''}
           <button class="${q.active?'btn btn-d':'btn btn-s'} btn-sm" onclick="toggleActive('${q.id}',${!q.active})">${q.active?'Stop':'Start'}</button>
           <button class="btn btn-d btn-sm btn-icon" onclick="delQuiz('${q.id}')">🗑</button>
         </div>
@@ -428,12 +434,15 @@ async function joinQuiz(){
     document.getElementById('p-name').value='';
     // Show music player when taking quiz
     document.getElementById('music-player').classList.remove('hidden');
-    goTo('screen-quiz');renderQ();
+    goTo('screen-quiz');
+    // If quiz has hostControl, subscribe to host; otherwise run standalone
+    pStartHostSync(quiz.id);
+    renderQ();
   }catch(e){showErr('join-err','Connection error. Check internet and try again.');}
   busy('join-btn',false);
 }
 
-function renderQ(){
+function renderQ(hostControlled){
   const q=S.quiz.questions[S.qi];
   const total=S.quiz.questions.length;
   const timerSec=S.quiz.timerSec||10;
@@ -468,11 +477,22 @@ function renderQ(){
         <div style="font-size:.9rem;color:var(--text)">${esc(o)}</div>
       </div>`).join('');
   }else if(type==='fill'){
-    document.getElementById('qopts').innerHTML=`
-      <input type="text" class="fill-input" id="fill-inp" placeholder="Type your answer here..." autocomplete="off"
-        onkeypress="if(event.key==='Enter')submitFill()"/>
-      <button class="btn btn-p btn-sm" style="margin-top:.75rem" onclick="submitFill()">Submit Answer</button>`;
-    setTimeout(()=>document.getElementById('fill-inp')?.focus(),100);
+    // Build options: correct answer + distractors from other fill questions in the quiz
+    const correctAns=q.answer||'';
+    const distractors=S.quiz.questions
+      .filter((_,idx)=>idx!==S.qi&&_.type==='fill'&&_.answer&&_.answer!==correctAns)
+      .map(x=>x.answer).slice(0,3);
+    // Pad with generic distractors if not enough
+    while(distractors.length<3) distractors.push(['True','False','None of the above','All of the above'][distractors.length]||'N/A');
+    const opts=[correctAns,...distractors].sort(()=>Math.random()-.5);
+    window._fillOpts=opts;window._fillCorrect=correctAns;
+    const L=['A','B','C','D'];
+    document.getElementById('qopts').innerHTML=opts.map((o,j)=>
+      `<div class="qopt" id="qo${j}" onclick="selFillOpt(${j})">
+        <div class="oletter">${L[j]}</div>
+        <div style="font-size:.9rem;color:var(--text)">${esc(o)}</div>
+      </div>`).join('');
+    setTimeout(()=>{},0);
   }else if(type==='match'){
     // shuffle right column
     const pairs=q.pairs||[];
@@ -484,25 +504,38 @@ function renderQ(){
     </div>`;
     document.getElementById('qopts').innerHTML=html;
   }
-  startTimer(timerSec);
+  // Only auto-start timer if host is NOT controlling this quiz
+  if(!hostControlled && !_pHostControlled){
+    startTimer(timerSec);
+  } else {
+    // Show paused timer at full value until host starts
+    clearInterval(S.timer);S.timer=null;S.tLeft=timerSec;updTimer(timerSec,timerSec);
+  }
 }
 
-// Fill blank submit
-function submitFill(){
-  const inp=document.getElementById('fill-inp');
-  if(!inp||inp.disabled)return;
-  const val=inp.value.trim();
-  if(!val)return;
+// Fill blank — clickable options version
+function selFillOpt(j){
+  if(S.answers[S.qi]!==undefined)return;
   clearInterval(S.timer);
-  S.answers[S.qi]=val;
-  const q=S.quiz.questions[S.qi];
-  const correct=val.toLowerCase()===String(q.answer||'').toLowerCase();
-  inp.classList.add(correct?'correct':'wrong');
-  inp.disabled=true;
+  const chosen=window._fillOpts[j];
+  const correct=window._fillCorrect;
+  S.answers[S.qi]=chosen;
+  const isCorrect=chosen.toLowerCase()===correct.toLowerCase();
+  document.querySelectorAll('.qopt').forEach((el,k)=>{
+    el.classList.add('disabled');
+    const optVal=window._fillOpts[k];
+    if(k===j){
+      el.classList.add(isCorrect?'correct':'wrong');
+    }else if(optVal.toLowerCase()===correct.toLowerCase()){
+      el.classList.add('correct');
+    }else if(!isCorrect){
+      el.classList.add('wrong');
+    }
+  });
   show('next-btn');
 }
 
-// Match pairs logic
+
 function selectMatchLeft(i){
   if(S.matchState.matched[i]!==undefined)return;
   S.matchState.selectedLeft=i;
@@ -538,9 +571,29 @@ function selectMatchRight(ri){
   }
 }
 
+// Timer sound using Web Audio API
+function _beep(freq=880, dur=0.08, vol=0.15, type='sine'){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator();const g=ctx.createGain();
+    o.type=type;o.frequency.value=freq;
+    g.gain.setValueAtTime(vol,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur);
+    o.connect(g);g.connect(ctx.destination);
+    o.start();o.stop(ctx.currentTime+dur);
+    setTimeout(()=>ctx.close(),dur*1000+200);
+  }catch(e){}
+}
+
 function startTimer(sec){
   clearInterval(S.timer);S.tLeft=sec||10;updTimer(S.tLeft,sec);
-  S.timer=setInterval(()=>{S.tLeft--;updTimer(S.tLeft,sec);if(S.tLeft<=0){clearInterval(S.timer);lockOpts();setTimeout(nextQ,700);}},1000);
+  S.timer=setInterval(()=>{
+    S.tLeft--;
+    updTimer(S.tLeft,sec);
+    // Play warning beeps
+    if(S.tLeft<=3&&S.tLeft>0) _beep(660,0.07,0.2,'square');
+    if(S.tLeft<=0){clearInterval(S.timer);lockOpts();setTimeout(nextQ,900);}
+  },1000);
 }
 function updTimer(t,total){
   const tc=document.getElementById('tc'),td=document.getElementById('tdisp');
@@ -551,15 +604,41 @@ function updTimer(t,total){
 function selAns(j){
   if(S.answers[S.qi]!==undefined)return;
   clearInterval(S.timer);S.answers[S.qi]=j;
-  document.querySelectorAll('.qopt').forEach((el,k)=>{el.classList.add('disabled');if(k===j)el.classList.add('sel');});
+  const q=S.quiz.questions[S.qi];
+  const correct=q.correct;
+  document.querySelectorAll('.qopt').forEach((el,k)=>{
+    el.classList.add('disabled');
+    if(k===j){
+      // selected option
+      el.classList.add(k===correct?'correct':'wrong');
+    }else if(k===correct){
+      // always reveal the correct one in green
+      el.classList.add('correct');
+    }else{
+      // other wrong options go red if participant chose wrong
+      if(j!==correct) el.classList.add('wrong');
+    }
+  });
   show('next-btn');
 }
 function lockOpts(){
-  document.querySelectorAll('.qopt').forEach(el=>el.classList.add('disabled'));
-  const fillInp=document.getElementById('fill-inp');
-  if(fillInp)fillInp.disabled=true;
+  const q=S.quiz?.questions[S.qi];
+  const type=q?.type||'mcq';
+  document.querySelectorAll('.qopt').forEach((el,k)=>{
+    el.classList.add('disabled');
+    if(type==='fill'){
+      // reveal correct option among clickable fill opts
+      const optVal=window._fillOpts?.[k];
+      const correct=window._fillCorrect||'';
+      if(optVal&&optVal.toLowerCase()===correct.toLowerCase()) el.classList.add('correct');
+      else el.classList.add('wrong');
+    }else{
+      if(q&&k===q.correct) el.classList.add('correct');
+      else el.classList.add('wrong');
+    }
+  });
 }
-function nextQ(){clearInterval(S.timer);if(S.qi<S.quiz.questions.length-1){S.qi++;renderQ();}else submitQuiz();}
+function nextQ(){clearInterval(S.timer);if(S.qi<S.quiz.questions.length-1){S.qi++;renderQ();}else{pStopHostSync();submitQuiz();}}
 
 async function submitQuiz(){
   let score=0;
@@ -581,12 +660,24 @@ async function submitQuiz(){
   setTxt('s-score-big',`${score}/${maxScore} pts`);
   setTxt('s-score-pct',`${pct}% · ${total} questions`);
   try{
-    await C.results().add({
-      participantId:S.participant.id,participantName:S.participant.name,
-      quizId:S.quiz.id,quizTitle:S.quiz.title,quizCode:S.quiz.code,
-      adminUid:S.quiz.adminUid,score,maxScore,total,pct,
-      answers:S.answers,submittedAt:Date.now()
-    });
+    // ── Duplication fix: check if this participant already submitted ──
+    const existing=await C.results()
+      .where('quizId','==',S.quiz.id)
+      .where('participantId','==',S.participant.id)
+      .get();
+    if(!existing.empty){
+      // Update the existing record instead of adding a new one
+      await existing.docs[0].ref.update({
+        score,maxScore,total,pct,answers:S.answers,submittedAt:Date.now()
+      });
+    }else{
+      await C.results().add({
+        participantId:S.participant.id,participantName:S.participant.name,
+        quizId:S.quiz.id,quizTitle:S.quiz.title,quizCode:S.quiz.code,
+        adminUid:S.quiz.adminUid,score,maxScore,total,pct,
+        answers:S.answers,submittedAt:Date.now()
+      });
+    }
   }catch(e){console.warn('Result save error:',e.code);}
   goTo('screen-success');
 }
@@ -963,6 +1054,374 @@ function toggleMusic(){
 function setVol(v){
   _musicVol=parseFloat(v);
   if(window._musicGain&&_audioCtx)window._musicGain.gain.setValueAtTime(_musicVol,_audioCtx.currentTime);
+}
+
+
+// ── Participant Host-Sync ─────────────────────────────────────────────────────
+// When a host is controlling the quiz, participants sync their timer + question
+// to hostControl field on the quiz document via Firestore onSnapshot.
+let _pHostUnsub = null;
+let _pHostControlled = false; // true while host is broadcasting
+
+function pStartHostSync(quizId){
+  if(_pHostUnsub){_pHostUnsub();_pHostUnsub=null;}
+  _pHostControlled = false;
+  let _lastQi = -1; // track last rendered question to avoid redundant re-renders
+  let _lastTimerState = null;
+
+  _pHostUnsub = db.collection('quizzes').doc(quizId).onSnapshot(snap=>{
+    if(!snap.exists)return;
+    // Ignore if participant has already left the quiz screen
+    const screen = document.querySelector('.screen.active');
+    if(!screen || screen.id !== 'screen-quiz') return;
+
+    const data = snap.data();
+    const hc = data.hostControl;
+    if(!hc){
+      // Host left — hide banner, let participant run freely
+      _pHostControlled = false;
+      const banner=document.getElementById('host-ctrl-banner');
+      if(banner){banner.style.display='none';}
+      return;
+    }
+
+    _pHostControlled = true;
+    // Show host-control banner
+    const banner=document.getElementById('host-ctrl-banner');
+    if(banner){banner.style.display='flex';banner.classList.remove('hidden');}
+
+    const {qi, timerState, tLeft, timerSec} = hc;
+    const tot = timerSec || S.quiz?.timerSec || 10;
+
+    // ── Sync question index ──
+    // Jump to new question if host changed it AND participant hasn't answered it yet
+    if(typeof qi === 'number' && qi !== _lastQi){
+      _lastQi = qi;
+      if(qi !== S.qi){
+        clearInterval(S.timer); S.timer = null;
+        S.qi = qi;
+        renderQ(true); // hostControlled=true → skip auto-start timer
+      }
+    }
+
+    // ── Sync timer state ──
+    if(timerState === 'running'){
+      // Re-sync if we're not running, or drift > 2s
+      const drift = Math.abs(S.tLeft - tLeft);
+      if(!S.timer || drift > 2){
+        clearInterval(S.timer); S.timer = null;
+        S.tLeft = tLeft;
+        updTimer(S.tLeft, tot);
+        if(S.answers[S.qi] === undefined && S.tLeft > 0){
+          S.timer = setInterval(()=>{
+            S.tLeft--;
+            updTimer(S.tLeft, tot);
+            if(S.tLeft <= 3 && S.tLeft > 0) _beep(660,0.07,0.2,'square');
+            if(S.tLeft <= 0){
+              clearInterval(S.timer); S.timer = null;
+              lockOpts();
+              setTimeout(()=>{ if(_pHostControlled) show('next-btn'); }, 400);
+            }
+          }, 1000);
+        }
+      }
+    } else if(timerState === 'paused'){
+      if(_lastTimerState !== 'paused'){
+        clearInterval(S.timer); S.timer = null;
+        S.tLeft = tLeft;
+        updTimer(S.tLeft, tot);
+      }
+    } else if(timerState === 'reset'){
+      clearInterval(S.timer); S.timer = null;
+      S.tLeft = tot;
+      updTimer(S.tLeft, tot);
+    } else if(timerState === 'ended'){
+      if(_lastTimerState !== 'ended'){
+        clearInterval(S.timer); S.timer = null;
+        S.tLeft = 0;
+        updTimer(0, tot);
+        if(S.answers[S.qi] === undefined) lockOpts();
+        setTimeout(()=>show('next-btn'), 400);
+      }
+    }
+    _lastTimerState = timerState;
+  });
+}
+
+function pStopHostSync(){
+  if(_pHostUnsub){_pHostUnsub();_pHostUnsub=null;}
+  _pHostControlled = false;
+  const banner=document.getElementById('host-ctrl-banner');
+  if(banner){banner.style.display='none';}
+}
+
+// ── HOST VIEW ──────────────────────────────────────────────────────────────────
+const HV = {
+  quiz: null,
+  qi: 0,
+  timer: null,
+  tLeft: 0,
+  timerRunning: false,
+  lbUnsub: null,
+  participantsUnsub: null,
+  hostSelectedAnswer: null,  // host's chosen option index
+};
+
+async function openHostView(quizId){
+  try{
+    const doc=await C.quizzes().doc(quizId).get();
+    if(!doc.exists){toast('Quiz not found','error');return;}
+    HV.quiz={id:doc.id,...doc.data()};
+    HV.qi=0;
+    HV.timerRunning=false;
+    HV.hostSelectedAnswer=null;
+    document.getElementById('hv-code-badge').textContent=HV.quiz.code;
+    // Write initial control state so participants know host is in control
+    await hvBroadcast('paused', HV.quiz.timerSec||10);
+    hvRenderQuestion();
+    hvStartLiveLeaderboard();
+    hvStartParticipantList();
+    goTo('screen-host');
+  }catch(e){toast('Error opening host view','error');console.error(e);}
+}
+
+// Writes host control state to Firestore so participants sync
+async function hvBroadcast(timerState, tLeft){
+  if(!HV.quiz)return;
+  try{
+    await C.quizzes().doc(HV.quiz.id).update({
+      hostControl:{
+        qi: HV.qi,
+        timerState,
+        tLeft,
+        timerSec: HV.quiz.timerSec||10,
+        updatedAt: Date.now()
+      }
+    });
+  }catch(e){console.warn('hvBroadcast error',e);}
+}
+
+function exitHostView(){
+  clearInterval(HV.timer);
+  HV.timerRunning=false;
+  // Clear hostControl so participants are no longer synced to host
+  if(HV.quiz){
+    C.quizzes().doc(HV.quiz.id).update({hostControl: firebase.firestore.FieldValue.delete()}).catch(()=>{});
+  }
+  if(HV.lbUnsub){HV.lbUnsub();HV.lbUnsub=null;}
+  if(HV.participantsUnsub){HV.participantsUnsub();HV.participantsUnsub=null;}
+  goTo('screen-admin');renderQuizList();
+}
+
+function hvRenderQuestion(){
+  if(!HV.quiz)return;
+  const qs=HV.quiz.questions||[];
+  const q=qs[HV.qi];
+  if(!q)return;
+  clearInterval(HV.timer);HV.timerRunning=false;
+  HV.tLeft=HV.quiz.timerSec||10;
+  HV.hostSelectedAnswer=null;
+  // timer display
+  hvUpdTimer(HV.tLeft,HV.quiz.timerSec||10);
+  document.getElementById('hv-timer-btn').textContent='▶ Start';
+  document.getElementById('hv-timer-btn').className='btn btn-s btn-sm';
+  // counter
+  document.getElementById('hv-q-counter').textContent=`Q ${HV.qi+1} / ${qs.length}`;
+  document.getElementById('hv-prev-btn').disabled=HV.qi===0;
+  document.getElementById('hv-next-btn').disabled=HV.qi===qs.length-1;
+  // type & points
+  const typeLabels={mcq:'Multiple Choice',truefalse:'True / False',fill:'Fill in the Blank',match:'Match the Pairs'};
+  document.getElementById('hv-type-label').textContent=typeLabels[q.type||'mcq']||'Multiple Choice';
+  const pts=q.points||1;
+  document.getElementById('hv-pts-badge').textContent=`⭐ ${pts} pt${pts>1?'s':''}`;
+  document.getElementById('hv-qtext').textContent=q.text||'';
+  // options
+  const optsEl=document.getElementById('hv-qopts');
+  const type=q.type||'mcq';
+  if(type==='mcq'||type==='truefalse'){
+    const L=['A','B','C','D'];
+    optsEl.innerHTML=q.options.map((o,j)=>
+      `<div class="qopt hv-opt" id="hvo${j}" onclick="hvSelectOpt(${j})" style="cursor:pointer">
+        <div class="oletter">${type==='truefalse'?(j===0?'T':'F'):L[j]}</div>
+        <div style="font-size:.9rem;color:var(--text)">${esc(o)}</div>
+      </div>`).join('');
+  }else if(type==='fill'){
+    optsEl.innerHTML=`<input type="text" class="fill-input" placeholder="Type your answer here..." autocomplete="off" disabled style="opacity:.5;cursor:not-allowed"/>
+      <p style="color:var(--text3);font-size:.75rem;margin-top:.5rem;text-align:center">Participants type their answer</p>`;
+  }else if(type==='match'){
+    const pairs=q.pairs||[];
+    const lefts=pairs.map(p=>p.left);
+    const rights=[...pairs.map(p=>p.right)].sort(()=>Math.random()-.5);
+    optsEl.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-top:.4rem">
+      <div style="font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;text-align:center;margin-bottom:.2rem">Items</div>
+      <div style="font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;text-align:center;margin-bottom:.2rem">Match</div>
+      ${lefts.map((l,i)=>`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.45rem .7rem;font-size:.82rem;text-align:center">${esc(l)}</div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.45rem .7rem;font-size:.82rem;text-align:center">${esc(rights[i])}</div>`).join('')}
+    </div>`;
+  }else{
+    optsEl.innerHTML='';
+  }
+  // auto-advance timer starts immediately if quiz has autoplay (not here — host controls it)
+}
+
+function hvSelectOpt(j){
+  if(HV.hostSelectedAnswer!==null)return; // already revealed
+  HV.hostSelectedAnswer=j;
+  const q=HV.quiz?.questions[HV.qi];
+  if(!q)return;
+  const correct=q.correct;
+  document.querySelectorAll('.hv-opt').forEach((el,k)=>{
+    el.classList.add('disabled');
+    if(k===j){
+      el.classList.add(k===correct?'correct':'wrong');
+    }else if(k===correct){
+      el.classList.add('correct');
+    }else if(j!==correct){
+      el.classList.add('wrong');
+    }
+  });
+}
+
+function hvToggleTimer(){
+  if(!HV.quiz)return;
+  if(HV.timerRunning){
+    // Pause
+    clearInterval(HV.timer);HV.timerRunning=false;
+    document.getElementById('hv-timer-btn').textContent='▶ Resume';
+    document.getElementById('hv-timer-btn').className='btn btn-s btn-sm';
+    hvBroadcast('paused', HV.tLeft);
+  }else{
+    // Start / Resume
+    if(HV.tLeft<=0)HV.tLeft=HV.quiz.timerSec||10;
+    HV.timerRunning=true;
+    document.getElementById('hv-timer-btn').textContent='⏸ Pause';
+    document.getElementById('hv-timer-btn').className='btn btn-d btn-sm';
+    const total=HV.quiz.timerSec||10;
+    hvBroadcast('running', HV.tLeft);
+    HV.timer=setInterval(()=>{
+      HV.tLeft--;
+      hvUpdTimer(HV.tLeft,total);
+      // Broadcast every 2s to keep Firestore writes low while staying in sync
+      if(HV.tLeft % 2 === 0 || HV.tLeft <= 5) hvBroadcast('running', HV.tLeft);
+      if(HV.tLeft<=0){
+        clearInterval(HV.timer);HV.timerRunning=false;
+        document.getElementById('hv-timer-btn').textContent='▶ Start';
+        document.getElementById('hv-timer-btn').className='btn btn-s btn-sm';
+        hvBroadcast('ended', 0);
+        // Auto-advance to next question after 1.5s
+        setTimeout(()=>{
+          if(HV.qi<(HV.quiz.questions||[]).length-1){
+            HV.qi++;
+            hvRenderQuestion();
+            hvBroadcast('paused', HV.quiz.timerSec||10);
+          }
+        },1500);
+      }
+    },1000);
+  }
+}
+
+function hvResetTimer(){
+  clearInterval(HV.timer);HV.timerRunning=false;
+  HV.tLeft=HV.quiz?.timerSec||10;
+  hvUpdTimer(HV.tLeft,HV.tLeft);
+  document.getElementById('hv-timer-btn').textContent='▶ Start';
+  document.getElementById('hv-timer-btn').className='btn btn-s btn-sm';
+  hvBroadcast('reset', HV.tLeft);
+}
+
+function hvUpdTimer(t,total){
+  const tc=document.getElementById('hv-tc'),td=document.getElementById('hv-tdisp');
+  if(tc){tc.style.strokeDashoffset=CIRC*(1-t/Math.max(total,1));tc.style.stroke=t<=3?'var(--red)':t<=(total*0.4)?'var(--amber)':'var(--accent)';}
+  if(td){td.textContent=t;td.className='tnum'+(t<=3?' danger':t<=(total*0.4)?' warn':'');}
+}
+
+function hvPrevQ(){
+  if(HV.qi>0){
+    clearInterval(HV.timer);HV.timerRunning=false;
+    HV.qi--;hvRenderQuestion();
+    hvBroadcast('paused', HV.quiz.timerSec||10);
+  }
+}
+function hvNextQ(){
+  const qs=HV.quiz?.questions||[];
+  if(HV.qi<qs.length-1){
+    clearInterval(HV.timer);HV.timerRunning=false;
+    HV.qi++;hvRenderQuestion();
+    hvBroadcast('paused', HV.quiz.timerSec||10);
+  }
+}
+
+function hvStartLiveLeaderboard(){
+  if(HV.lbUnsub){HV.lbUnsub();HV.lbUnsub=null;}
+  if(!HV.quiz)return;
+  HV.lbUnsub=C.results()
+    .where('quizId','==',HV.quiz.id)
+    .onSnapshot(snap=>{
+      const results=snap.docs.map(d=>d.data()).sort((a,b)=>b.score-a.score||(a.submittedAt-b.submittedAt));
+      // Deduplicate by participantId — keep best/latest score per participant
+      const seen={};
+      const deduped=[];
+      results.forEach(r=>{
+        const pid=r.participantId||r.participantName;
+        if(!seen[pid]){seen[pid]=true;deduped.push(r);}
+      });
+      const lb=document.getElementById('hv-leaderboard');
+      if(!lb)return;
+      if(!deduped.length){lb.innerHTML=`<p style="color:var(--text3);font-size:.82rem;text-align:center;padding:.5rem">Waiting for submissions...</p>`;return;}
+      const maxPts=(HV.quiz.questions||[]).reduce((s,q)=>s+(q.points||1),0)||1;
+      lb.innerHTML=`<table class="rtbl" style="font-size:.82rem">
+        <thead><tr><th>#</th><th>Participant</th><th>Score</th><th>%</th></tr></thead>
+        <tbody>${deduped.slice(0,20).map((r,i)=>{
+          const pct=Math.round((r.score/(r.maxScore||maxPts||1))*100);
+          const col=pct>=70?'var(--green)':pct>=40?'var(--amber)':'var(--red)';
+          const rc=i===0?'r1':i===1?'r2':i===2?'r3':'rn';
+          const ini=(r.participantName||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+          return`<tr>
+            <td><span class="rnk ${rc}">${i+1}</span></td>
+            <td><div style="display:flex;align-items:center;gap:.5rem"><div class="av">${ini}</div><span style="font-weight:500">${esc(r.participantName)}</span></div></td>
+            <td style="font-weight:600;color:${col}">${r.score}/${r.maxScore||maxPts}</td>
+            <td style="color:${col};font-family:var(--font-m)">${pct}%</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+      document.getElementById('hv-lb-updated').textContent='Updated '+new Date().toLocaleTimeString();
+    });
+}
+
+function hvStartParticipantList(){
+  if(HV.participantsUnsub){HV.participantsUnsub();HV.participantsUnsub=null;}
+  if(!HV.quiz)return;
+  HV.participantsUnsub=C.results()
+    .where('quizId','==',HV.quiz.id)
+    .onSnapshot(snap=>{
+      // Deduplicate participants
+      const seen={};const parts=[];
+      snap.docs.forEach(d=>{
+        const r=d.data();
+        const pid=r.participantId||r.participantName;
+        if(!seen[pid]){seen[pid]=true;parts.push(r);}
+      });
+      parts.sort((a,b)=>b.score-a.score);
+      document.getElementById('hv-pcount').textContent=parts.length;
+      const el=document.getElementById('hv-participants-list');
+      if(!el)return;
+      if(!parts.length){el.innerHTML=`<div style="padding:.75rem;color:var(--text3);font-size:.78rem;text-align:center">No participants yet</div>`;return;}
+      const maxPts=(HV.quiz.questions||[]).reduce((s,q)=>s+(q.points||1),0)||1;
+      el.innerHTML=parts.map((r,i)=>{
+        const pct=Math.round((r.score/(r.maxScore||maxPts||1))*100);
+        const col=pct>=70?'var(--green)':pct>=40?'var(--amber)':'var(--red)';
+        const ini=(r.participantName||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+        const rank=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+        return`<div class="hv-pitem">
+          <div class="av" style="width:30px;height:30px;font-size:.68rem">${ini}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.78rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${rank} ${esc(r.participantName)}</div>
+            <div style="font-size:.68rem;font-family:var(--font-m);color:${col}">${r.score}pts · ${pct}%</div>
+          </div>
+        </div>`;
+      }).join('');
+    });
 }
 
 window.addEventListener('popstate',e=>{e.preventDefault();history.pushState(null,'');});
